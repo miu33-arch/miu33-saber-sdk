@@ -1,0 +1,40 @@
+﻿{
+  "name": "@miu33/saber-sdk",
+  "version": "1.0.0",
+  "description": "Deterministic Saudi SABER & SASO technical regulation conformity engine with Fasah customs manifest validation",
+  "main": "dist/src/engine/index.js",
+  "types": "dist/src/engine/index.d.ts",
+  "type": "module",
+  "exports": {
+    ".": {
+      "import": "./dist/src/engine/index.js",
+      "types": "./dist/src/engine/index.d.ts",
+      "default": "./dist/src/engine/index.js"
+    }
+  },
+  "files": [
+    "dist/src/engine",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "test": "tsc && node --test dist/tests/**/*.test.js",
+    "pack:dry": "npm pack --dry-run"
+  },
+  "keywords": [
+    "saber",
+    "saso",
+    "fasah",
+    "customs",
+    "pcoc",
+    "scoc",
+    "trade-compliance",
+    "ksa"
+  ],
+  "author": "MIU_33",
+  "license": "MIT",
+  "devDependencies": {
+    "@types/node": "^26.6.4",
+    "typescript": "^7.0.2"
+  }
+}
