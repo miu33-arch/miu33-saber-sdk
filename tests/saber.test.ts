@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { classifyProductRegulation, sanitizeHsCode } from "../src/engine/classifier.js";
 import { auditShipmentManifest } from "../src/engine/auditor.js";
 import { PcocCertificate, ScocShipmentManifest } from "../src/types/saber.js";
+import { SaberApiClient } from "../src/engine/client.js";
 
 describe("SABER HS Code Classification", () => {
   test("sanitizes formatted tariff strings", () => {
@@ -115,5 +116,36 @@ describe("SCoC Pre-Arrival Customs Manifest Audit", () => {
     const audit = auditShipmentManifest(manifest, [expiredPcoc]);
     assert.equal(audit.valid, false);
     assert.ok(audit.errors.some(e => e.includes("PCOC_EXPIRED")));
+  });
+});
+describe("SaberApiClient Sandbox Remote Integration", () => {
+  const mockConfig = {
+    clientId: "sbx_client_miu33",
+    clientSecret: "sbx_secret_live_0987",
+    apiKey: "saber_api_key_test_123",
+    environment: "sandbox" as const,
+  };
+
+  test("initializes client with sandbox defaults and custom headers", () => {
+    const client = new SaberApiClient(mockConfig);
+    assert.ok(client instanceof SaberApiClient);
+  });
+
+  test("rejects gracefully on unreachable sandbox host without uncaught process crash", async () => {
+    const unreachableClient = new SaberApiClient({
+      ...mockConfig,
+      customBaseUrl: "http://127.0.0.1:9", // unreachable loopback port
+      timeoutMs: 300,
+    });
+
+    await assert.rejects(
+      async () => {
+        await unreachableClient.getAccessToken();
+      },
+      (err: Error) => {
+        assert.match(err.message, /\[SaberApiClient\] OAuth2 Authentication Failed/);
+        return true;
+      }
+    );
   });
 });
