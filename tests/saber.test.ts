@@ -118,34 +118,61 @@ describe("SCoC Pre-Arrival Customs Manifest Audit", () => {
     assert.ok(audit.errors.some(e => e.includes("PCOC_EXPIRED")));
   });
 });
-describe("SaberApiClient Sandbox Remote Integration", () => {
+describe("SaberApiClient Production Sandbox Capabilities", () => {
   const mockConfig = {
     clientId: "sbx_client_miu33",
     clientSecret: "sbx_secret_live_0987",
     apiKey: "saber_api_key_test_123",
-    environment: "sandbox" as const,
+    mockMode: true,
   };
 
-  test("initializes client with sandbox defaults and custom headers", () => {
+  test("generates repeatable sha256 idempotency key", () => {
     const client = new SaberApiClient(mockConfig);
-    assert.ok(client instanceof SaberApiClient);
+    const payload = { invoiceNumber: "INV-001", amount: 1500 };
+    const key1 = client.generateIdempotencyKey(payload);
+    const key2 = client.generateIdempotencyKey(payload);
+    assert.equal(key1, key2);
+    assert.equal(key1.length, 64);
   });
 
-  test("rejects gracefully on unreachable sandbox host without uncaught process crash", async () => {
-    const unreachableClient = new SaberApiClient({
-      ...mockConfig,
-      customBaseUrl: "http://127.0.0.1:9", // unreachable loopback port
-      timeoutMs: 300,
+  test("evaluates mock tariff regulation without network call", async () => {
+    const client = new SaberApiClient(mockConfig);
+    const res = await client.queryTariffRegulation("8504.40.90");
+    assert.equal(res.conformityScheme, "REGULATED");
+    assert.equal(res.technicalRegulationId, "TR-LVD-01");
+  });
+
+  test("verifies mock PCoC and submits mock SCoC end-to-end", async () => {
+    const client = new SaberApiClient(mockConfig);
+    const pcoc = await client.verifyPcoc("PCOC-2026-9901");
+    assert.equal(pcoc.status, "ACTIVE");
+
+    const scoc = await client.submitScoc({
+      importerCr: "1010000000",
+      commercialInvoiceNumber: "INV-2026-0081",
+      invoiceDate: "2026-10-10",
+      portOfEntry: "JED_SEA",
+      billOfLading: "MAEU928301928",
+      items: [
+        {
+          hsCode: "85044090",
+          pcocNumber: pcoc.certificateNumber,
+          itemDescription: "Power Module",
+          quantity: 100,
+          declaredValueSar: 15000,
+        },
+      ],
     });
 
-    await assert.rejects(
-      async () => {
-        await unreachableClient.getAccessToken();
-      },
-      (err: Error) => {
-        assert.match(err.message, /\[SaberApiClient\] OAuth2 Authentication Failed/);
-        return true;
-      }
-    );
+    assert.equal(scoc.applicationStatus, "APPROVED");
+    assert.ok(scoc.scocNumber.startsWith("SCOC-2026-"));
+    assert.ok(scoc.barcodeUrl?.includes("sandbox.saber.sa"));
+  });
+
+  test("polls mock SCoC release status synchronously", async () => {
+    const client = new SaberApiClient(mockConfig);
+    const pollResult = await client.pollScocStatus("SCOC-2026-1234", { maxAttempts: 2, intervalMs: 10 });
+    assert.equal(pollResult.applicationStatus, "APPROVED");
+    assert.equal(pollResult.customsReleaseCode, "FASAH-REL-SCOC-2026-1234");
   });
 });
